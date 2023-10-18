@@ -1,0 +1,87 @@
+supercell: 
+    file: start.xyz
+    format: extxyz
+    replicate: [1, 1, 1]
+    jitter: 0.1
+
+# Set up FLARE calculator with (sparse) Gaussian process
+flare_calc:
+    gp: SGP_Wrapper
+    kernels:
+        - name: NormalizedDotProduct
+          sigma: 2.0
+          power: 2
+    descriptors:
+        - name: B2
+          nmax: 8
+          lmax: 3
+          cutoff_function: quadratic
+          radial_basis: chebyshev
+          cutoff_matrix: [[3.75, 3.75, 3.75, 2.75, 3.75], [3.75, 3.75, 3.75, 2.75, 3.75], [3.75, 3.75, 3.75, 2.75, 3.75], [2.75, 2.75, 2.75, 2.75, 2.75], [3.75, 3.75, 3.75, 2.75, 3.75]]
+    energy_noise: 0.100
+    forces_noise: 0.1
+    stress_noise: 0.001
+    species:
+        - 8
+        - 14
+        - 13
+        - 1
+        - 6
+    single_atom_energies:
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+    cutoff: 3.75
+    variance_type: local
+    max_iterations: 20
+    use_mapping: True
+
+dft_calc:
+  dft_calc:
+    name: Vasp
+    kwargs:
+        command: "srun -n 1 --cpu-bind=cores --gpu-bind=none -G 4  vasp_std"
+        # pseudo-potential
+        xc: PBE
+        # k points
+        kpts: [1, 1, 1]
+        # INCAR
+        istart: 0
+        npar: 1
+        ediff: 1.0e-5
+        encut: 450
+        nelmin: 200
+        ismear: 1
+        sigma: 0.2
+        lreal: Auto
+        prec: Accurate
+        algo: Very_Fast
+        ivdw: 11
+        lscalapack: False
+    params: {}
+
+# Set up On-the-fly training and MD
+otf: 
+    mode: fresh
+    md_engine: PyLAMMPS
+    md_kwargs: 
+        command: "lmp"
+        specorder: [O, Si, Al, H, C]
+        dump_period: 1
+        pair_style: flare
+        fix: 
+          - "1 all npt temp 1000 1000 $(100.0*dt) tchain 3 aniso 1 1 $(1000*dt)"
+        keep_alive: False
+    initial_velocity: 1000
+    dt: 0.0001 
+    number_of_steps: 100
+    output_name: otf
+    #init_atoms: [0, 1, 2, 3, 4]
+    std_tolerance_factor: -0.2
+    update_threshold: 0.02
+    train_hyps: [50,60]
+    write_model: 3
+    update_style: threshold
+    force_only: False
